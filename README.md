@@ -1,2 +1,2 @@
 # Transformice-Server
-Open source Transformice emulator
+An open source emulator with support for bulle servers.
