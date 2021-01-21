@@ -5,6 +5,7 @@ from utils import logging
 from utils.languages import *
 from server.tcp.ByteArray import *
 from game.player.Player import *
+from server.managers.CaptchaManager import *
 from server.managers.TCPClientManager import *
 from server.managers.PlayersManager import *
 
@@ -91,7 +92,7 @@ class TCPClient(threading.Thread):
 		if not self.connected:
 			return
 
-		if self.player != None:
+		if self.player != None and self.player.logged:
 			PlayersManager.delete(self.player)
 
 		self.connected = False
@@ -198,6 +199,9 @@ class TCPClient(threading.Thread):
 
 		elif packetcode1 == 26:
 			if packetcode2 == 8:
+				if self.player != None and self.player.logged:
+					return
+
 				# auth login
 				nickname = bytearray.readUTF().capitalize()
 				sha256 = bytearray.readUTF()
@@ -210,8 +214,20 @@ class TCPClient(threading.Thread):
 					self.player.identification(nickname)
 					self.player.join_room(room)
 
+			elif packetcode2 == 20:
+				if self.player != None and self.player.logged:
+					return
+
+				self.player.captcha = CaptchaManager.captcha()
+
+				print(self.player.captcha)
+				return
+				
 		elif packetcode1 == 28:
 			if packetcode2 == 1:
+				if self.player != None and self.player.logged:
+					return
+
 				# handshake
 				version = bytearray.readShort()
 				key = bytearray.readUTF()
@@ -249,6 +265,9 @@ class TCPClient(threading.Thread):
 				return
 
 			elif packetcode2 == 17:
+				if self.player.logged:
+					return
+
 				language = bytearray.readUTF()
 				system = bytearray.readUTF()
 				version = bytearray.readUTF()

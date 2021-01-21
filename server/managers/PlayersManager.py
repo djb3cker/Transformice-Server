@@ -13,7 +13,6 @@ class PlayersManager:
 	def get():
 		return PlayersManager.__players__
 
-
 	@staticmethod
 	def connected_count():
 		return len(PlayersManager.__players__)

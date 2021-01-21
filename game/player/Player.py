@@ -15,11 +15,18 @@ class Player:
 			"str": "en"
 		}
 
+		self.captcha = {
+			"letters": "",
+			"data": b""
+		}
+
 		self.id = 0
 		self.code = 0
 
 		self.nickname = ""
 		self.privilege = 0
+
+		self.logged = False
 
 		self.bulle_room = None
 
@@ -32,8 +39,9 @@ class Player:
 		if self.bulle_room != None:
 			self.bulle_room.leave(self)
 			
-		bulle = BulleManager.get_bulle(room)
+		if BulleManager.count() > 0:
+			bulle = BulleManager.get_bulle(room)
 
-		self.bulle_room = BulleRoomsManager.join(bulle, room)
+			self.bulle_room = BulleRoomsManager.join(bulle, room)
 
-		print(self.bulle_room)
+			print(self.bulle_room)

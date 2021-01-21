@@ -1,7 +1,9 @@
 import time
 from utils import logging
 from server.tcp.TCPSocket import *
+from server.json.JSONServer import *
 from server.managers.TCPClientManager import *
+from server.managers.JSONManager import *
 
 __author__ = "b3ckerdev"
 __license__ = "MIT License"
@@ -34,7 +36,15 @@ class Transformice:
 
 		logging.info("All sockets were opened on dedicated threads.")
 
-		thread = threading.Thread(target=TCPClientManager.check_all_clients_has_connected(), args=())
+		json_server = JSONServer("0.0.0.0", 8010)
+		json_server.bind()
+		json_server.listen(500000)
+		json_server.start()
+
+		thread = threading.Thread(target=TCPClientManager.check_all_clients_has_connected, args=())
+		thread.start()
+
+		thread = threading.Thread(target=JSONManager.check_all_clients_has_connected, args=())
 		thread.start()
 
 		print("\n")

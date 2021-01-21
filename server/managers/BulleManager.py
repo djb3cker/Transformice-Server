@@ -6,6 +6,10 @@ class BulleManager:
 	@staticmethod
 	def get():
 		return BulleManager.__bulles__
+
+	@staticmethod
+	def count():
+		return len(BulleManager.__bulles__)
 		
 	@staticmethod
 	def add(bulle_ip):
