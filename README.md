@@ -3,7 +3,7 @@
 This is an open source emulator of the game Transformice.
 
   - **Language:** Python 3.4 or later
-  - **Current progress:** 10% of 100%
+  - **Current progress:** 10%/100%
   - **Contributors:** b3ckerdev#9778
 
 ### What has already been developed?
