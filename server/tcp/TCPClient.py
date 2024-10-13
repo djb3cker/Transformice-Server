@@ -1,11 +1,11 @@
 import time
+import random
 import threading
-from transformice import *
+from WorldOfMice import *
 from utils import logging
 from utils.languages import *
 from server.tcp.ByteArray import *
 from game.player.Player import *
-from server.managers.CaptchaManager import *
 from server.managers.TCPClientManager import *
 from server.managers.PlayersManager import *
 
@@ -31,7 +31,7 @@ class TCPClient(threading.Thread):
 				data = self.socket.recv(8192)
 			except:
 				if self.errors_count >= 3:
-					self.close("The client {} ended the connection".format(
+					self.close("[ERROR] The client {} ended the connection".format(
 						self.address)
 					)
 					break
@@ -56,23 +56,23 @@ class TCPClient(threading.Thread):
 		if not type(data) == bytes:
 			data = data.encode()
 
-		try:
-			self.socket.sendall(self.encodeData(data) if encode else data)
+		#try:
+		self.socket.sendall(self.encodeData(data) if encode else data)
 
-			logging.debug("{} - send packet data: {}".format(
-				self.address[0],
-				repr(data)
-				)
+		logging.debug("{} - send packet data: {}".format(
+			self.address[0],
+			repr(data)
 			)
-		except:
-			if self.errors_count >= 3:
-				self.close("The client {} ended the connection".format(
-					self.address[0]
-					)
-				)
+		)
+		#except:
+		#	if self.errors_count >= 3:
+		#		self.close("[ERROR] The client {} ended the connection".format(
+		#			self.address[0]
+		#			)
+		#		)
 
-			self.errors_count += 1
-			self.send(data, encode)
+		#	self.errors_count += 1
+		#	self.send(data, encode)
 
 	def encodeData(self, data):
 		bytearray_encode = ByteArray()
@@ -80,11 +80,11 @@ class TCPClient(threading.Thread):
 		calc = data_size >> 7
 
 		while calc != 0:
-			bytearray_encode.writeByte(((data_size & 0x7F) | 0x80))
+			bytearray_encode.writeUnsignedByte(((data_size & 0x7F) | 0x80))
 			data_size = calc
 			calc = (calc >> 7)
 
-		bytearray_encode.writeByte(data_size & 0x7F)
+		bytearray_encode.writeUnsignedByte(data_size & 0x7F)
 		bytearray_encode.writeBytes(data)
 		return bytearray_encode.toByteArray()
 
@@ -92,8 +92,11 @@ class TCPClient(threading.Thread):
 		if not self.connected:
 			return
 
-		if self.player != None and self.player.logged:
+		if self.player != None:
 			PlayersManager.delete(self.player)
+
+			if self.player.room != None:
+				self.player.leaveRoom()
 
 		self.connected = False
 
@@ -178,7 +181,89 @@ class TCPClient(threading.Thread):
 			)
 		)
 
-		if packetcode1 == 8:
+		if packetcode1 == 4:
+			if packetcode2 == 4:
+				roundCode = bytearray.readInt()
+				droiteEnCours = bytearray.readBoolean()
+				gaucheEnCours = bytearray.readBoolean()
+				px = bytearray.readUnsignedInt()
+				py = bytearray.readUnsignedInt()
+				vx = bytearray.readUnsignedShort()
+				vy = bytearray.readUnsignedShort()
+				jump = bytearray.readBoolean()
+				jump_img = bytearray.readByte()
+				portal = bytearray.readByte()
+				isAngle =  bytearray.bytesAvailable()
+				angle = bytearray.readUnsignedShort() if isAngle else -1
+				vel_angle = bytearray.readUnsignedShort() if isAngle else -1
+				loc_1 = bytearray.readBoolean() if isAngle else False
+
+				if roundCode == self.player.room.map["current_round"]:
+					if droiteEnCours or gaucheEnCours:
+						self.player.isMovingRight = droiteEnCours
+						self.player.isMovingLeft = gaucheEnCours
+						self.player.isAfk = False
+						self.player.lastAfkTime = time.time()
+					else:
+						if((time.time() - self.player.lastAfkTime) > 120):
+							self.player.isAfk = True
+
+					self.player.posX = px * 800 / 2700
+					self.player.posY = py * 800 / 2700
+					self.player.velX = vx
+					self.player.velY = vy
+					self.player.isJumping = jump
+
+					self.player.player_packets.mouseMoviemnt(self.player.code, roundCode, droiteEnCours, gaucheEnCours, px, py, vx, vy, jump, jump_img, portal, isAngle, angle, vel_angle, loc_1)
+				return
+
+			elif packetcode2 == 5:
+				roundCode = bytearray.readInt()
+				c = bytearray.readByte()
+
+				if roundCode == self.player.room.map["current_round"]:
+					self.player.round["dead"] = True
+					self.player.round["score"] += 1
+
+					self.player.player_packets.playerDiedRoom(self.player.code, self.player.round["score"])
+ 
+					if self.player.room.checkAllDead():
+						self.player.room.newRound()
+
+				return
+
+		elif packetcode1 == 5:
+			if packetcode2 == 18:
+				holeType = bytearray.readByte()
+				roundCode = bytearray.readInt()
+				monde = bytearray.readInt()
+				distance = bytearray.readShort()
+				holeX = bytearray.readShort()
+				holeY = bytearray.readShort()
+				if roundCode == self.player.room.map["current_round"]:
+					self.player.round["score"] += 10
+
+					timeTaken = int((time.time() - (self.playerStartTimeMillis if self.player.room.autoRespawn else self.player.room.map["gameStartTimeMillis"])) * 100)
+					self.player.player_packets.enterHole(self.player.code, self.player.round["score"], self.player.room.map["place"], timeTaken)
+					self.player.round["dead"] = True
+
+					if self.player.room.checkAllDead():
+						self.player.room.newRound()
+				return
+
+			elif packetcode2 == 19:
+				roundCode = bytearray.readInt()
+				cheeseX = bytearray.readShort()
+				cheeseY = bytearray.readShort()
+				distance = bytearray.readShort()
+
+				if roundCode == self.player.room.map["current_round"]:
+					self.player.round["cheese"] = True
+
+					self.player.player_packets.getCheese(self.player.code, self.player.round["cheese"])
+				return
+
+		elif packetcode1 == 8:
 			if packetcode2 == 2:
 				# community
 				id = bytearray.readByte()
@@ -188,13 +273,7 @@ class TCPClient(threading.Thread):
 
 				if find_result != None:
 					self.player.community["id"] = id
-					self.player.community["str"] = find_result;
-					
-					logging.debug("{} -> community -> {}".format(
-						self.address[0],
-						find_result
-						)
-					)
+					self.player.community["str"] = find_result
 				return
 
 		elif packetcode1 == 26:
@@ -211,16 +290,11 @@ class TCPClient(threading.Thread):
 				data_key = bytearray.readByte()
 
 				if len(nickname) == 0 or len(sha256) == 0:
-					self.player.identification(nickname)
+					self.player.identification("Souris_{}{}".format(nickname, random.randint(5000, 500000)))
 					self.player.join_room(room)
-
+				return
+				
 			elif packetcode2 == 20:
-				if self.player != None and self.player.logged:
-					return
-
-				self.player.captcha = CaptchaManager.captcha()
-
-				print(self.player.captcha)
 				return
 				
 		elif packetcode1 == 28:
@@ -241,15 +315,14 @@ class TCPClient(threading.Thread):
 				y = bytearray.readInt()
 				string = bytearray.readUTF()
 
-				if version != Transformice.version():
+				if version != WorldOfMice.version():
 					self.close()
-				elif key != Transformice.key():
+				elif key != WorldOfMice.key():
 					self.close()
 				else:
 					self.player = Player(self)
 					self.player.version = version
 					self.player.key = key
-					self.player.connection_time = Transformice.time()
 
 					PlayersManager.add(self.player)
 
@@ -272,4 +345,10 @@ class TCPClient(threading.Thread):
 				system = bytearray.readUTF()
 				version = bytearray.readUTF()
 				pod = bytearray.readByte()
+
+				self.player.playerInfo["language"] = language
+				self.player.playerInfo["system"] = language
+				self.player.playerInfo["version"] = language
+				self.player.playerInfo["pod"] = language
+
 				return
